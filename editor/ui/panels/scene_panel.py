@@ -7,6 +7,8 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QOpenGLWidget
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QKeyEvent, QMatrix4x4, QVector3D, QFont, QPainter, QColor
+import OpenGL
+OpenGL.ERROR_CHECKING = True  # 启用错误检查
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
@@ -52,6 +54,9 @@ class SceneGLWidget(QOpenGLWidget):
     def __init__(self):
         """初始化OpenGL窗口部件"""
         super().__init__()
+        
+        # 在创建OpenGL上下文之前不要使用任何OpenGL命令
+        self.gl_initialized = False
         
         # 设置焦点策略
         self.setFocusPolicy(Qt.StrongFocus)
@@ -219,9 +224,11 @@ class SceneGLWidget(QOpenGLWidget):
         
         # 启用深度测试
         glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LESS)
         
         # 启用背面剔除
         glEnable(GL_CULL_FACE)
+        glCullFace(GL_BACK)
         
         # 启用混合
         glEnable(GL_BLEND)
@@ -235,8 +242,11 @@ class SceneGLWidget(QOpenGLWidget):
         glEnable(GL_LINE_SMOOTH)
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
         
-        # 启用抗锯齿
+        # 启用多重采样
         glEnable(GL_MULTISAMPLE)
+        
+        # 标记OpenGL已初始化
+        self.gl_initialized = True
     
     def resizeGL(self, width, height):
         """调整OpenGL视口大小
@@ -291,9 +301,7 @@ class SceneGLWidget(QOpenGLWidget):
     def draw_skybox(self):
         """绘制天空盒（渐变背景）"""
         # 禁用深度测试以确保天空盒始终在背景
-        glDisable(GL_DEPTH_TEST)
-        
-        # 绘制渐变背景
+        glDisable(GL_DEPTH_TEST)      
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
@@ -301,17 +309,22 @@ class SceneGLWidget(QOpenGLWidget):
         glPushMatrix()
         glLoadIdentity()
         
-        # 绘制填充整个屏幕的渐变四边形
-        glBegin(GL_QUADS)
-        # 上部颜色
-        glColor3f(*self.sky_color_top)
-        glVertex2f(-1.0, 1.0)  # 左上
-        glVertex2f(1.0, 1.0)   # 右上
-        # 下部颜色
-        glColor3f(*self.sky_color_bottom)
-        glVertex2f(1.0, -1.0)  # 右下
-        glVertex2f(-1.0, -1.0) # 左下
-        glEnd()
+        try:
+            # 绘制填充整个屏幕的渐变四边形
+            glBegin(GL_QUADS)
+            try:
+                # 上部颜色
+                glColor3f(*self.sky_color_top)
+                glVertex2f(-1.0, 1.0)  # 左上
+                glVertex2f(1.0, 1.0)   # 右上
+                # 下部颜色
+                glColor3f(*self.sky_color_bottom)
+                glVertex2f(1.0, -1.0)  # 右下
+                glVertex2f(-1.0, -1.0) # 左下
+            finally:
+                glEnd()
+        except OpenGL.error.GLError as e:
+            print(f"绘制天空盒时出错: {e}")
         
         glMatrixMode(GL_PROJECTION)
         glPopMatrix()
@@ -340,31 +353,36 @@ class SceneGLWidget(QOpenGLWidget):
         # 设置细网格颜色（稍微透明）
         glColor4f(self.ground_color[0], self.ground_color[1], self.ground_color[2], 0.3)
         
-        # 绘制网格
-        glBegin(GL_LINES)
-        for i in range(0, len(self.grid_vertices), 3):
-            glVertex3f(
-                self.grid_vertices[i],
-                self.grid_vertices[i + 1],
-                self.grid_vertices[i + 2]
-            )
-        glEnd()
-        
-        # 绘制主网格线（坐标轴上的线更粗更亮）
-        glLineWidth(1.5)
-        glBegin(GL_LINES)
-        
-        # 沿X轴的线
-        glColor4f(self.x_axis_color[0], self.x_axis_color[1], self.x_axis_color[2], 0.6)
-        glVertex3f(-10.0, 0.0, 0.0)
-        glVertex3f(10.0, 0.0, 0.0)
-        
-        # 沿Z轴的线
-        glColor4f(self.z_axis_color[0], self.z_axis_color[1], self.z_axis_color[2], 0.6)
-        glVertex3f(0.0, 0.0, -10.0)
-        glVertex3f(0.0, 0.0, 10.0)
-        
-        glEnd()
+        try:
+            # 绘制网格
+            glBegin(GL_LINES)
+            try:
+                for i in range(0, len(self.grid_vertices), 3):
+                    glVertex3f(
+                        self.grid_vertices[i],
+                        self.grid_vertices[i + 1],
+                        self.grid_vertices[i + 2]
+                    )
+            finally:
+                glEnd()
+            
+            # 绘制主网格线（坐标轴上的线更粗更亮）
+            glLineWidth(1.5)
+            glBegin(GL_LINES)
+            try:
+                # 沿X轴的线
+                glColor4f(self.x_axis_color[0], self.x_axis_color[1], self.x_axis_color[2], 0.6)
+                glVertex3f(-10.0, 0.0, 0.0)
+                glVertex3f(10.0, 0.0, 0.0)
+                
+                # 沿Z轴的线
+                glColor4f(self.z_axis_color[0], self.z_axis_color[1], self.z_axis_color[2], 0.6)
+                glVertex3f(0.0, 0.0, -10.0)
+                glVertex3f(0.0, 0.0, 10.0)
+            finally:
+                glEnd()
+        except OpenGL.error.GLError as e:
+            print(f"绘制网格时出错: {e}")
     
     def draw_axes(self, view, projection):
         """绘制坐标轴
@@ -387,25 +405,28 @@ class SceneGLWidget(QOpenGLWidget):
         
         screen_mvp = projection * screen_model
         
-        # 绘制坐标轴
-        glBegin(GL_LINES)
-        
-        # X轴 (红色)
-        glColor3f(*self.x_axis_color)
-        glVertex3f(0.0, 0.0, 0.0)
-        glVertex3f(self.axis_length, 0.0, 0.0)
-        
-        # Y轴 (绿色)
-        glColor3f(*self.y_axis_color)
-        glVertex3f(0.0, 0.0, 0.0)
-        glVertex3f(0.0, self.axis_length, 0.0)
-        
-        # Z轴 (蓝色)
-        glColor3f(*self.z_axis_color)
-        glVertex3f(0.0, 0.0, 0.0)
-        glVertex3f(0.0, 0.0, self.axis_length)
-        
-        glEnd()
+        try:
+            # 绘制坐标轴
+            glBegin(GL_LINES)
+            try:
+                # X轴 (红色)
+                glColor3f(*self.x_axis_color)
+                glVertex3f(0.0, 0.0, 0.0)
+                glVertex3f(self.axis_length, 0.0, 0.0)
+                
+                # Y轴 (绿色)
+                glColor3f(*self.y_axis_color)
+                glVertex3f(0.0, 0.0, 0.0)
+                glVertex3f(0.0, self.axis_length, 0.0)
+                
+                # Z轴 (蓝色)
+                glColor3f(*self.z_axis_color)
+                glVertex3f(0.0, 0.0, 0.0)
+                glVertex3f(0.0, 0.0, self.axis_length)
+            finally:
+                glEnd()
+        except OpenGL.error.GLError as e:
+            print(f"绘制坐标轴时出错: {e}")
         
         # 绘制坐标轴文字标签
         self.renderText(self.axis_length+0.05, 0.0, 0.0, "X", self.x_axis_color)
@@ -458,31 +479,45 @@ class SceneGLWidget(QOpenGLWidget):
         Args:
             model (QMatrix4x4): 模型矩阵
         """
-        # 绘制立方体
-        glBegin(GL_QUADS)
-        for i in range(0, len(self.cube_vertices), 3):
-            if i % 12 == 0:
-                # 每个面的第一个顶点，设置面的颜色
-                face_index = i // 12
-                # 根据面的法线方向计算光照效果
-                lighting = 0.7 + 0.3 * (face_index % 3) / 2.0
-                
-                # 调整颜色以反映光照
-                current_color = (
-                    glGetFloatv(GL_CURRENT_COLOR)[0] * lighting,
-                    glGetFloatv(GL_CURRENT_COLOR)[1] * lighting,
-                    glGetFloatv(GL_CURRENT_COLOR)[2] * lighting
-                )
-                glColor3f(*current_color)
-            
-            vertex = QVector3D(
-                self.cube_vertices[i],
-                self.cube_vertices[i + 1],
-                self.cube_vertices[i + 2]
-            )
-            vertex = model.map(vertex)
-            glVertex3f(vertex.x(), vertex.y(), vertex.z())
-        glEnd()
+        try:
+            glBegin(GL_QUADS)
+            try:
+                for i in range(0, len(self.cube_vertices), 3):
+                    if i % 12 == 0:
+                        # 每个面的第一个顶点，设置面的颜色
+                        face_index = i // 12
+                        # 根据面的法线方向计算光照效果
+                        lighting = 0.7 + 0.3 * (face_index % 3) / 2.0
+                        
+                        # 获取当前颜色
+                        current_color = glGetFloatv(GL_CURRENT_COLOR)
+                        # 调整颜色以反映光照
+                        adjusted_color = (
+                            current_color[0] * lighting,
+                            current_color[1] * lighting,
+                            current_color[2] * lighting
+                        )
+                        glColor3f(*adjusted_color)
+                    
+                    # 获取顶点位置
+                    vertex = QVector3D(
+                        self.cube_vertices[i],
+                        self.cube_vertices[i + 1],
+                        self.cube_vertices[i + 2]
+                    )
+                    # 应用模型变换
+                    transformed = model.map(vertex)
+                    # 设置顶点
+                    glVertex3f(transformed.x(), transformed.y(), transformed.z())
+            finally:
+                glEnd()  # 确保在finally块中调用glEnd
+        except OpenGL.error.GLError as e:
+            print(f"OpenGL错误: {e}")
+            # 如果发生错误，尝试结束当前的图元绘制
+            try:
+                glEnd()
+            except:
+                pass
     
     def renderText(self, x, y, z, text, color=(1.0, 1.0, 1.0)):
         """使用QPainter在3D空间渲染文本

@@ -7,14 +7,32 @@ PyCraft 编辑器入口文件
 import sys
 import os
 import argparse
+import logging
+import traceback
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QLinearGradient, QColor, QFont
 from PyQt5.QtCore import Qt, QTimer
 
+# 配置日志记录
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('editor.log', 'w', 'utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('PyCraft')
+
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from editor.editor_app import EditorApp
+try:
+    from editor.editor_app import EditorApp
+except Exception as e:
+    logger.error(f"导入编辑器应用程序时出错: {e}")
+    logger.error(traceback.format_exc())
+    sys.exit(1)
 
 
 def create_splash_image():
@@ -69,77 +87,103 @@ def parse_arguments():
 
 def main():
     """主函数"""
-    # 创建QApplication实例
-    app = QApplication(sys.argv)
-    
-    # 显示启动画面
-    splash_pixmap = create_splash_image()
-    splash = QSplashScreen(splash_pixmap, Qt.WindowStaysOnTopHint)
-    splash.setFont(QFont("Arial", 10))
-    splash.show()
-    splash.showMessage(
-        "初始化编辑器环境...", 
-        Qt.AlignBottom | Qt.AlignHCenter, 
-        Qt.white
-    )
-    app.processEvents()
-    
-    # 解析命令行参数
-    args = parse_arguments()
-    
-    # 解析分辨率
     try:
-        width, height = map(int, args.resolution.split('x'))
-    except:
-        width, height = 1280, 720
-        print(f"警告: 无效的分辨率格式 '{args.resolution}'，使用默认值 1280x720")
-    
-    # 显示加载消息
-    splash.showMessage(
-        "加载编辑器组件...", 
-        Qt.AlignBottom | Qt.AlignHCenter, 
-        Qt.white
-    )
-    app.processEvents()
-    
-    # 延迟一段时间以显示启动画面
-    timer = QTimer()
-    timer.singleShot(1500, lambda: None)
-    app.processEvents()
-    
-    # 创建编辑器应用程序实例
-    editor_app = EditorApp(
-        width=width,
-        height=height,
-        debug=args.debug
-    )
-    
-    # 如果指定了项目，打开项目
-    if args.project:
+        logger.info("正在启动编辑器...")
+        
+        # 创建QApplication实例
+        app = QApplication(sys.argv)
+        logger.info("QApplication 已创建")
+        
+        # 显示启动画面
+        splash_pixmap = create_splash_image()
+        splash = QSplashScreen(splash_pixmap, Qt.WindowStaysOnTopHint)
+        splash.setFont(QFont("Arial", 10))
+        splash.show()
         splash.showMessage(
-            f"正在打开项目: {os.path.basename(args.project)}...", 
+            "初始化编辑器环境...", 
             Qt.AlignBottom | Qt.AlignHCenter, 
             Qt.white
         )
         app.processEvents()
-        editor_app.open_project(args.project)
-    
-    # 如果指定了场景，加载场景
-    if args.scene:
+        logger.info("启动画面已显示")
+        
+        # 解析命令行参数
+        args = parse_arguments()
+        logger.info(f"命令行参数: {args}")
+        
+        # 解析分辨率
+        try:
+            width, height = map(int, args.resolution.split('x'))
+        except:
+            width, height = 1280, 720
+            logger.warning(f"无效的分辨率格式 '{args.resolution}'，使用默认值 1280x720")
+        
+        # 显示加载消息
         splash.showMessage(
-            f"正在加载场景: {os.path.basename(args.scene)}...", 
+            "加载编辑器组件...", 
             Qt.AlignBottom | Qt.AlignHCenter, 
             Qt.white
         )
         app.processEvents()
-        editor_app.load_scene(args.scene)
-    
-    # 关闭启动画面，显示主窗口
-    splash.finish(editor_app.main_window)
-    
-    # 运行编辑器
-    return editor_app.run()
-
+        
+        # 延迟一段时间以显示启动画面
+        timer = QTimer()
+        timer.singleShot(1500, lambda: None)
+        app.processEvents()
+        
+        try:
+            # 创建编辑器应用程序实例
+            logger.info("正在创建编辑器应用程序实例...")
+            editor_app = EditorApp(
+                width=width,
+                height=height,
+                debug=args.debug
+            )
+            logger.info("编辑器应用程序实例已创建")
+            
+            # 如果指定了项目，打开项目
+            if args.project:
+                splash.showMessage(
+                    f"正在打开项目: {os.path.basename(args.project)}...", 
+                    Qt.AlignBottom | Qt.AlignHCenter, 
+                    Qt.white
+                )
+                app.processEvents()
+                editor_app.open_project(args.project)
+                logger.info(f"已打开项目: {args.project}")
+            
+            # 如果指定了场景，加载场景
+            if args.scene:
+                splash.showMessage(
+                    f"正在加载场景: {os.path.basename(args.scene)}...", 
+                    Qt.AlignBottom | Qt.AlignHCenter, 
+                    Qt.white
+                )
+                app.processEvents()
+                editor_app.load_scene(args.scene)
+                logger.info(f"已加载场景: {args.scene}")
+            
+            # 关闭启动画面，显示主窗口
+            splash.finish(editor_app.main_window)
+            logger.info("编辑器启动完成，显示主窗口")
+            
+            # 运行编辑器
+            return editor_app.run()
+            
+        except Exception as e:
+            logger.error(f"创建或运行编辑器应用程序时出错: {e}")
+            logger.error(traceback.format_exc())
+            raise
+            
+    except Exception as e:
+        logger.error(f"编辑器启动失败: {e}")
+        logger.error(traceback.format_exc())
+        return 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as e:
+        logger.error(f"未处理的异常: {e}")
+        logger.error(traceback.format_exc())
+        sys.exit(1)
