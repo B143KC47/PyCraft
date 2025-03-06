@@ -3,10 +3,14 @@ import sys
 from core.game import Game
 
 def main():
+    print("启动PyCraft引擎...")
+    
     # 初始化游戏
     game = Game(width=800, height=600, title="PyCraft Engine")
+    print("游戏初始化完成")
     
     # 游戏主循环
+    print("进入游戏主循环")
     while game.running:
         # 处理事件
         for event in pygame.event.get():
@@ -27,9 +31,17 @@ def main():
         game.clock.tick(60)
     
     # 清理资源
+    print("清理资源...")
     game.cleanup()
     pygame.quit()
     sys.exit()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"发生错误: {e}")
+        import traceback
+        traceback.print_exc()
+        pygame.quit()
+        sys.exit(1)
