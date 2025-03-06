@@ -1,27 +1,9 @@
-2025-03-06 23:25:30,416 - OpenGL.acceleratesupport - DEBUG - OpenGL_accelerate module loaded
-2025-03-06 23:25:30,425 - OpenGL.arrays.arraydatatype - DEBUG - Using accelerated ArrayDatatype
-2025-03-06 23:25:30,601 - PyCraft - INFO - 正在启动编辑器...
-2025-03-06 23:25:30,613 - PyCraft - INFO - QApplication 已创建
-2025-03-06 23:25:30,614 - PyCraft - ERROR - 编辑器启动失败: arguments did not match any overloaded call:
-  drawText(self, p: Union[QPointF, QPoint], s: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, rectangle: QRectF, flags: int, text: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, rectangle: QRect, flags: int, text: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, rectangle: QRectF, text: Optional[str], option: QTextOption = QTextOption()): argument 1 has unexpected type 'float'
-  drawText(self, p: QPoint, s: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, x: int, y: int, width: int, height: int, flags: int, text: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, x: int, y: int, s: Optional[str]): argument 1 has unexpected type 'float'
-2025-03-06 23:25:30,615 - PyCraft - ERROR - Traceback (most recent call last):
-  File "C:\Users\ko202\Desktop\project\PyCraft\editor_main.py", line 98, in main
-    splash_pixmap = create_splash_image()
-                    ^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\ko202\Desktop\project\PyCraft\editor_main.py", line 61, in create_splash_image
-    painter.drawText(width/2 - 100, height/2 - 40, "PyCraft")
-TypeError: arguments did not match any overloaded call:
-  drawText(self, p: Union[QPointF, QPoint], s: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, rectangle: QRectF, flags: int, text: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, rectangle: QRect, flags: int, text: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, rectangle: QRectF, text: Optional[str], option: QTextOption = QTextOption()): argument 1 has unexpected type 'float'
-  drawText(self, p: QPoint, s: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, x: int, y: int, width: int, height: int, flags: int, text: Optional[str]): argument 1 has unexpected type 'float'
-  drawText(self, x: int, y: int, s: Optional[str]): argument 1 has unexpected type 'float'
-
+2025-03-06 23:32:37,656 - OpenGL.acceleratesupport - DEBUG - OpenGL_accelerate module loaded
+2025-03-06 23:32:37,666 - OpenGL.arrays.arraydatatype - DEBUG - Using accelerated ArrayDatatype
+2025-03-06 23:32:37,853 - PyCraft - INFO - 正在启动编辑器...
+2025-03-06 23:32:37,867 - PyCraft - INFO - QApplication 已创建
+2025-03-06 23:32:39,797 - PyCraft - INFO - 启动画面已显示
+2025-03-06 23:32:39,800 - PyCraft - INFO - 命令行参数: Namespace(project=None, scene=None, debug=True, fullscreen=False, resolution='1280x720')
+2025-03-06 23:32:39,801 - PyCraft - INFO - 正在创建编辑器应用程序实例...
+2025-03-06 23:32:39,870 - PyCraft - INFO - 编辑器应用程序实例已创建
+2025-03-06 23:32:40,883 - PyCraft - INFO - 编辑器启动完成，显示主窗口

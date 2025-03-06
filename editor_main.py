@@ -55,20 +55,20 @@ def create_splash_image():
     painter.setPen(Qt.NoPen)
     painter.drawRoundedRect(0, 0, width, height, 15, 15)
     
-    # 绘制标题
+    # 绘制标题，将浮点数转换为整数
     painter.setFont(QFont("Arial", 28, QFont.Bold))
     painter.setPen(QColor(230, 230, 250))
-    painter.drawText(width/2 - 100, height/2 - 40, "PyCraft")
+    painter.drawText(int(width/2 - 100), int(height/2 - 40), "PyCraft")
     
     # 绘制副标题
     painter.setFont(QFont("Arial", 16))
     painter.setPen(QColor(180, 180, 200))
-    painter.drawText(width/2 - 150, height/2 + 10, "创新的3D游戏开发平台")
+    painter.drawText(int(width/2 - 150), int(height/2 + 10), "创新的3D游戏开发平台")
     
     # 绘制版本号
     painter.setFont(QFont("Arial", 10))
     painter.setPen(QColor(150, 150, 170))
-    painter.drawText(width/2 - 30, height - 20, "v0.1.0")
+    painter.drawText(int(width/2 - 30), int(height - 20), "v0.1.0")
     
     painter.end()
     return QPixmap.fromImage(image)
