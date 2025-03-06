@@ -6,7 +6,7 @@ PyCraft 编辑器主窗口
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QDockWidget, QMenuBar, QMenu,
-    QAction, QMessageBox, QFileDialog, QLabel
+    QAction, QMessageBox, QFileDialog, QLabel, QVBoxLayout
 )
 from PyQt5.QtCore import Qt
 
@@ -45,21 +45,12 @@ class MainWindow(QMainWindow):
         # 创建菜单栏
         self._create_menu_bar()
         
-        # 创建中央窗口部件
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        
-        # 创建场景面板
+        # 创建场景面板，并将其设置为中央窗口部件
         self.scene_panel = ScenePanel()
-        scene_dock = QDockWidget("场景视图", self)
-        scene_dock.setWidget(self.scene_panel)
-        self.addDockWidget(Qt.RightDockWidgetArea, scene_dock)
+        self.setCentralWidget(self.scene_panel)
         
         # 设置场景面板为焦点
         self.scene_panel.setFocus()
-        
-        # 连接场景面板的焦点事件
-        scene_dock.visibilityChanged.connect(lambda visible: self.scene_panel.setFocus() if visible else None)
         
         # 创建层级面板
         self.hierarchy_panel = HierarchyPanel()
@@ -216,4 +207,4 @@ class MainWindow(QMainWindow):
             "一个基于Python的3D游戏引擎编辑器\n"
             "版本: 0.1.0\n"
             "作者: Your Name"
-        ) 
+        )
