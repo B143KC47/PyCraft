@@ -6,7 +6,7 @@ PyCraft 编辑器主窗口
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QDockWidget, QMenuBar, QMenu,
-    QAction, QMessageBox, QFileDialog
+    QAction, QMessageBox, QFileDialog, QLabel
 )
 from PyQt5.QtCore import Qt
 
@@ -55,6 +55,12 @@ class MainWindow(QMainWindow):
         scene_dock.setWidget(self.scene_panel)
         self.addDockWidget(Qt.RightDockWidgetArea, scene_dock)
         
+        # 设置场景面板为焦点
+        self.scene_panel.setFocus()
+        
+        # 连接场景面板的焦点事件
+        scene_dock.visibilityChanged.connect(lambda visible: self.scene_panel.setFocus() if visible else None)
+        
         # 创建层级面板
         self.hierarchy_panel = HierarchyPanel()
         hierarchy_dock = QDockWidget("层级视图", self)
@@ -72,6 +78,13 @@ class MainWindow(QMainWindow):
         asset_dock = QDockWidget("资源", self)
         asset_dock.setWidget(self.asset_browser)
         self.addDockWidget(Qt.BottomDockWidgetArea, asset_dock)
+        
+        # 添加状态栏信息
+        self.statusBar().showMessage("准备就绪")
+        
+        # 添加WASD控制提示
+        control_label = QLabel("使用WASD键移动，空格键上升，Ctrl键下降")
+        self.statusBar().addPermanentWidget(control_label)
     
     def _create_menu_bar(self):
         """创建菜单栏"""
