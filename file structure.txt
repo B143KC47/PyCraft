@@ -1,0 +1,75 @@
+PyCraft/
+├── engine/                     # 核心引擎模块
+│   ├── core/                   # 引擎核心功能
+│   │   ├── __init__.py
+│   │   ├── application.py      # 应用程序类，取代原来的game.py
+│   │   ├── ecs/                # ECS架构模块
+│   │   │   ├── __init__.py
+│   │   │   ├── entity.py       # 实体管理
+│   │   │   ├── component.py    # 组件基类
+│   │   │   └── system.py       # 系统基类
+│   │   ├── assets/             # 资源管理相关
+│   │   │   ├── __init__.py
+│   │   │   └── resource_manager.py
+│   │   └── scene/              # 场景管理相关
+│   │       ├── __init__.py
+│   │       ├── scene.py        # 场景基类
+│   │       └── scene_manager.py
+│   ├── rendering/              # 渲染模块
+│   │   ├── __init__.py
+│   │   ├── render_system.py    # 渲染系统
+│   │   ├── materials/          # 材质系统
+│   │   ├── shaders/            # 着色器
+│   │   └── models/             # 模型加载和处理
+│   ├── physics/                # 物理模块
+│   │   ├── __init__.py
+│   │   ├── physics_system.py
+│   │   ├── collider.py
+│   │   └── rigidbody.py
+│   ├── input/                  # 输入模块
+│   │   ├── __init__.py
+│   │   └── input_system.py
+│   ├── ui/                     # UI系统模块
+│   │   ├── __init__.py
+│   │   ├── ui_system.py
+│   │   ├── components/         # UI组件
+│   │   └── widgets/            # UI控件库
+│   ├── scripting/              # 脚本系统
+│   │   ├── __init__.py
+│   │   └── script_system.py
+│   └── utils/                  # 工具类
+│       ├── __init__.py
+│       ├── math_utils.py
+│       └── debug.py
+├── editor/                     # 编辑器模块
+│   ├── __init__.py
+│   ├── editor_app.py           # 编辑器应用程序入口
+│   ├── ui/                     # 编辑器UI
+│   │   ├── __init__.py
+│   │   ├── main_window.py
+│   │   └── panels/             # 编辑器面板
+│   │       ├── __init__.py
+│   │       ├── scene_panel.py
+│   │       ├── property_panel.py
+│   │       ├── hierarchy_panel.py
+│   │       └── asset_browser.py
+│   ├── tools/                  # 编辑器工具
+│   │   ├── __init__.py
+│   │   ├── transform_tool.py   # 变换工具
+│   │   └── visual_scripting.py # 视觉脚本系统
+│   └── systems/                # 编辑器系统
+│       ├── __init__.py
+│       └── ui_editor_system.py
+├── assets/                     # 游戏资源文件夹
+│   ├── models/
+│   ├── textures/
+│   ├── shaders/
+│   ├── ui/
+│   └── scenes/
+├── examples/                   # 示例游戏和教程
+│   ├── simple_game/
+│   └── tutorials/
+├── docs/                       # 文档
+├── main.py                     # 游戏运行入口
+├── editor_main.py              # 编辑器启动入口
+└── requirements.txt            # 依赖库

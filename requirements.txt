@@ -1,5 +1,5 @@
-pygame>=2.1.0
-PyOpenGL>=3.1.6
-PyOpenGL_accelerate>=3.1.6
-pybullet>=3.2.1
-numpy>=1.21.0 
+PyQt5>=5.15.0
+PyOpenGL>=3.1.0
+numpy>=1.19.0
+pybullet>=3.2.0
+pygame>=2.0.0 
