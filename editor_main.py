@@ -10,7 +10,7 @@ import argparse
 import logging
 import traceback
 from PyQt5.QtWidgets import QApplication, QSplashScreen
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QLinearGradient, QColor, QFont
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QLinearGradient, QColor, QFont, QPen
 from PyQt5.QtCore import Qt, QTimer
 
 # 配置日志记录
@@ -36,39 +36,90 @@ except Exception as e:
 
 
 def create_splash_image():
-    """创建启动画面图像"""
+    """创建深色系启动画面图像"""
     # 创建一个渐变背景的图像
-    width, height = 600, 400
+    width, height = 650, 420
     image = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
     image.fill(Qt.transparent)
     
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
     
-    # 创建渐变背景
-    gradient = QLinearGradient(0, 0, 0, height)
-    gradient.setColorAt(0, QColor(40, 40, 60))
-    gradient.setColorAt(1, QColor(20, 20, 30))
+    # 创建深色梯度背景
+    gradient = QLinearGradient(0, 0, width, height)
+    gradient.setColorAt(0, QColor(20, 20, 30))      # 深蓝黑色
+    gradient.setColorAt(0.4, QColor(30, 30, 45))    # 深蓝紫色
+    gradient.setColorAt(0.8, QColor(25, 25, 40))    # 中间色调
+    gradient.setColorAt(1, QColor(15, 15, 25))      # 暗黑色
     
     # 绘制圆角矩形背景
     painter.setBrush(gradient)
     painter.setPen(Qt.NoPen)
-    painter.drawRoundedRect(0, 0, width, height, 15, 15)
+    painter.drawRoundedRect(0, 0, width, height, 20, 20)
     
-    # 绘制标题，将浮点数转换为整数
-    painter.setFont(QFont("Arial", 28, QFont.Bold))
-    painter.setPen(QColor(230, 230, 250))
-    painter.drawText(int(width/2 - 100), int(height/2 - 40), "PyCraft")
+    # 添加微妙的网格图案
+    pen = QPen(QColor(60, 60, 90, 15))
+    pen.setWidth(1)
+    painter.setPen(pen)
+    
+    # 绘制水平线
+    for y in range(0, height, 20):
+        painter.drawLine(0, y, width, y)
+    
+    # 绘制垂直线
+    for x in range(0, width, 20):
+        painter.drawLine(x, 0, x, height)
+    
+    # 添加装饰性几何图形 - 左上角光效
+    radial_gradient = QLinearGradient(0, 0, 150, 150)
+    radial_gradient.setColorAt(0, QColor(80, 80, 150, 30))
+    radial_gradient.setColorAt(1, QColor(40, 40, 100, 0))
+    painter.setBrush(radial_gradient)
+    painter.drawEllipse(0, 0, 150, 150)
+    
+    # 添加右下角装饰
+    radial_gradient2 = QLinearGradient(width, height, width-100, height-100)
+    radial_gradient2.setColorAt(0, QColor(100, 60, 150, 20))
+    radial_gradient2.setColorAt(1, QColor(60, 40, 100, 0))
+    painter.setBrush(radial_gradient2)
+    painter.drawEllipse(width-150, height-150, 150, 150)
+    
+    # 绘制标题
+    title_font = QFont("Arial", 38, QFont.Bold)
+    title_font.setLetterSpacing(QFont.AbsoluteSpacing, 2)
+    painter.setFont(title_font)
+    
+    # 绘制标题阴影
+    painter.setPen(QColor(0, 0, 30, 100))
+    painter.drawText(int(width/2 - 105 + 2), int(height/2 - 70 + 2), "PyCraft")
+    
+    # 绘制标题
+    painter.setPen(QColor(210, 210, 255))  # 亮淡蓝色
+    painter.drawText(int(width/2 - 105), int(height/2 - 70), "PyCraft")
     
     # 绘制副标题
-    painter.setFont(QFont("Arial", 16))
-    painter.setPen(QColor(180, 180, 200))
-    painter.drawText(int(width/2 - 150), int(height/2 + 10), "创新的3D游戏开发平台")
+    subtitle_font = QFont("Arial", 16)
+    subtitle_font.setLetterSpacing(QFont.AbsoluteSpacing, 1)
+    painter.setFont(subtitle_font)
+    
+    # 绘制副标题阴影
+    painter.setPen(QColor(0, 0, 30, 100))
+    painter.drawText(int(width/2 - 155 + 1), int(height/2 - 10 + 1), "创新的3D游戏开发平台")
+    
+    # 绘制副标题
+    painter.setPen(QColor(170, 170, 220))  # 淡紫色
+    painter.drawText(int(width/2 - 155), int(height/2 - 10), "创新的3D游戏开发平台")
+    
+    # 绘制分隔线
+    pen = QPen(QColor(100, 100, 180, 60))
+    pen.setWidth(1)
+    painter.setPen(pen)
+    painter.drawLine(int(width/2 - 150), int(height/2 + 20), int(width/2 + 150), int(height/2 + 20))
     
     # 绘制版本号
     painter.setFont(QFont("Arial", 10))
-    painter.setPen(QColor(150, 150, 170))
-    painter.drawText(int(width/2 - 30), int(height - 20), "v0.1.0")
+    painter.setPen(QColor(140, 140, 190))  # 浅灰紫色
+    painter.drawText(int(width - 70), int(height - 25), "v0.1.0")
     
     painter.end()
     return QPixmap.fromImage(image)

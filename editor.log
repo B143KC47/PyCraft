@@ -1,9 +1,9 @@
-2025-03-07 22:24:37,972 - OpenGL.acceleratesupport - DEBUG - OpenGL_accelerate module loaded
-2025-03-07 22:24:37,986 - OpenGL.arrays.arraydatatype - DEBUG - Using accelerated ArrayDatatype
-2025-03-07 22:24:38,217 - PyCraft - INFO - 正在启动编辑器...
-2025-03-07 22:24:38,232 - PyCraft - INFO - QApplication 已创建
-2025-03-07 22:24:38,626 - PyCraft - INFO - 启动画面已显示
-2025-03-07 22:24:38,632 - PyCraft - INFO - 命令行参数: Namespace(project=None, scene=None, debug=False, fullscreen=False, resolution='1280x720')
-2025-03-07 22:24:38,635 - PyCraft - INFO - 正在创建编辑器应用程序实例...
-2025-03-07 22:24:38,740 - PyCraft - INFO - 编辑器应用程序实例已创建
-2025-03-07 22:25:15,588 - PyCraft - INFO - 编辑器启动完成，显示主窗口
+2025-03-07 23:02:04,618 - OpenGL.acceleratesupport - DEBUG - OpenGL_accelerate module loaded
+2025-03-07 23:02:04,633 - OpenGL.arrays.arraydatatype - DEBUG - Using accelerated ArrayDatatype
+2025-03-07 23:02:04,879 - PyCraft - INFO - 正在启动编辑器...
+2025-03-07 23:02:04,893 - PyCraft - INFO - QApplication 已创建
+2025-03-07 23:02:05,251 - PyCraft - INFO - 启动画面已显示
+2025-03-07 23:02:05,255 - PyCraft - INFO - 命令行参数: Namespace(project=None, scene=None, debug=True, fullscreen=False, resolution='1280x720')
+2025-03-07 23:02:05,258 - PyCraft - INFO - 正在创建编辑器应用程序实例...
+2025-03-07 23:02:05,391 - PyCraft - INFO - 编辑器应用程序实例已创建
+2025-03-07 23:02:06,404 - PyCraft - INFO - 编辑器启动完成，显示主窗口
