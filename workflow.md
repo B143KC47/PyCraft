@@ -1,16 +1,3 @@
-### 关键要点
-- 构建一个类似 Unreal Engine 编辑器的 Python 游戏引擎是复杂的，但通过选择合适的库和架构，可以为初学者提供易用的工具。
-- 建议使用 PyOpenGL 进行 3D 渲染，PyBullet 处理物理模拟，Pygame 管理输入，PyQt 构建编辑器界面。
-- 采用 Entity-Component-System（ECS）架构以提升模块性和性能，视觉脚本系统可使用 NodeEditor 实现。
-- 优化性能需使用 NumPy 数组，减少 Python 开销，并通过性能分析工具定位瓶颈。
-- 现有资源如 Panda3D 可作为参考，但完全复制 Unreal Engine 的功能需大量工作。
-
----
-
-### 直接回答
-
-以下是构建一个适合初学者的 Python 游戏引擎的指南，类似于 Unreal Engine 的编辑器，并实现其核心功能：
-
 #### 概述
 创建一个类似 Unreal Engine 的 Python 游戏引擎是一项复杂任务，但通过选择合适的库和设计，可以为初学者提供一个易用的工具。研究表明，这种引擎应包括 3D 渲染、物理模拟、输入处理和一个直观的编辑器，特别适合初学者使用。
 
@@ -99,5 +86,3 @@ Python 的全局解释器锁（GIL）可能限制多线程性能，影响物理�
 - 视觉脚本系统的实现可参考 [NodeEditor](https://github.com/spyder-ide/nodeeditor)，其文档说明如何创建自定义节点和连接。
 - PyQt 和 OpenGL 集成的详细指导可参考 [PyQt official documentation](https://doc.qt.io/qt-5/qopenglwidget.html)。
 
-#### 结论
-通过上述步骤，你可以构建一个高性能的 Python 游戏引擎，特别适合 3D 游戏开发，并提供一个类似 Unreal Engine 的编辑器，适合初学者使用。初期可能面临性能瓶颈，但通过优化和迭代，可实现流畅的游戏体验和易用的编辑工具。
