@@ -5,8 +5,8 @@
 """
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QOpenGLWidget
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QKeyEvent, QMatrix4x4, QVector3D, QFont, QPainter, QColor
+from PyQt5.QtCore import Qt, QTimer, QPoint
+from PyQt5.QtGui import QKeyEvent, QMatrix4x4, QVector3D, QFont, QPainter, QColor, QCursor
 import OpenGL
 OpenGL.ERROR_CHECKING = True  # 启用错误检查
 from OpenGL.GL import *
@@ -136,6 +136,26 @@ class SceneGLWidget(QOpenGLWidget):
         # 辅助选项
         self.show_grid = True
         self.show_axes = True
+        
+        # 世界视窗模式
+        self.world_view_mode = False
+        self.world_view_height = 1.7  # 默认人眼高度
+        self.player_radius = 0.3  # 玩家碰撞半径
+        self.gravity_enabled = True  # 是否启用重力
+        self.player_velocity = QVector3D(0.0, 0.0, 0.0)  # 玩家速度向量
+        self.gravity = -0.01  # 重力加速度
+        self.jump_force = 0.2  # 跳跃力度
+        self.is_jumping = False  # 是否正在跳跃
+        self.is_grounded = False  # 是否在地面上
+        
+        # 保存编辑器模式下的相机状态
+        self.editor_camera_state = {
+            'position': None,
+            'front': None,
+            'up': None,
+            'yaw': None,
+            'pitch': None
+        }
     
     def update_fps(self):
         """更新FPS计数器"""
@@ -278,6 +298,15 @@ class SceneGLWidget(QOpenGLWidget):
             self.camera_up
         )
         
+        # 保存当前的模型视图矩阵和投影矩阵，用于对象选择
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        glMultMatrixf(projection.data())
+        
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        glMultMatrixf(view.data())
+        
         # 绘制网格
         if self.show_grid:
             self.draw_grid(view, projection)
@@ -292,6 +321,10 @@ class SceneGLWidget(QOpenGLWidget):
             color = cube["color"]
             is_selected = (i == self.selected_cube)
             self.draw_cube(position, color, view, projection, is_selected)
+        
+        # 在世界视窗模式下绘制准星
+        if self.world_view_mode:
+            self.draw_crosshair()
         
         # 绘制统计信息
         if self.show_stats:
@@ -576,11 +609,20 @@ class SceneGLWidget(QOpenGLWidget):
         painter.drawText(10, 40, f"位置: ({self.camera_pos.x():.1f}, {self.camera_pos.y():.1f}, {self.camera_pos.z():.1f})")
         
         # 绘制选中的物体信息
-        if self.selected_cube >= 0 and self.selected_cube < len(self.cubes):
+        if not self.world_view_mode and self.selected_cube >= 0 and self.selected_cube < len(self.cubes):
             cube = self.cubes[self.selected_cube]
             painter.drawText(10, 60, f"选中: {cube['name']}")
             pos = cube["position"]
             painter.drawText(10, 80, f"物体位置: ({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f})")
+        
+        # 在世界视窗模式下显示提示
+        if self.world_view_mode:
+            mode_text = "世界视窗模式 - 按ESC退出"
+            if self.gravity_enabled:
+                mode_text += " | 空格跳跃 | 按V切换重力"
+            else:
+                mode_text += " | 空格上升，Ctrl下降 | 按V切换重力"
+            painter.drawText(10, self.height() - 20, mode_text)
         
         # 结束绘制
         painter.end()
@@ -598,27 +640,122 @@ class SceneGLWidget(QOpenGLWidget):
         # 确定移动速度 (按住Shift加速)
         speed = self.move_speed * (3.0 if self.keys[Qt.Key_Shift] else 1.0)
         
-        # 前后移动
-        if self.keys[Qt.Key_W]:
-            self.camera_pos += self.camera_front * speed
-        if self.keys[Qt.Key_S]:
-            self.camera_pos -= self.camera_front * speed
-        
-        # 左右移动
-        if self.keys[Qt.Key_A]:
+        # 在世界视窗模式下，移动方式不同
+        if self.world_view_mode:
+            # 计算前进方向（忽略Y轴，保持在水平面上移动）
+            forward = QVector3D(self.camera_front.x(), 0.0, self.camera_front.z())
+            forward.normalize()
+            
+            # 计算右方向
             right = QVector3D.crossProduct(self.camera_front, self.camera_up)
             right.normalize()
-            self.camera_pos -= right * speed
-        if self.keys[Qt.Key_D]:
-            right = QVector3D.crossProduct(self.camera_front, self.camera_up)
-            right.normalize()
-            self.camera_pos += right * speed
+            
+            # 计算新位置
+            new_pos = QVector3D(self.camera_pos)
+            
+            # 前后移动
+            if self.keys[Qt.Key_W]:
+                new_pos += forward * speed
+            if self.keys[Qt.Key_S]:
+                new_pos -= forward * speed
+            
+            # 左右移动
+            if self.keys[Qt.Key_A]:
+                new_pos -= right * speed
+            if self.keys[Qt.Key_D]:
+                new_pos += right * speed
+            
+            # 跳跃
+            if self.keys[Qt.Key_Space] and self.is_grounded:
+                self.player_velocity.setY(self.jump_force)
+                self.is_jumping = True
+                self.is_grounded = False
+            
+            # 应用重力
+            if self.gravity_enabled:
+                self.player_velocity.setY(self.player_velocity.y() + self.gravity)
+                new_pos.setY(new_pos.y() + self.player_velocity.y())
+                
+                # 检测地面碰撞
+                if new_pos.y() < self.world_view_height:
+                    new_pos.setY(self.world_view_height)
+                    self.player_velocity.setY(0)
+                    self.is_grounded = True
+                    self.is_jumping = False
+            else:
+                # 不启用重力时的上下移动
+                if self.keys[Qt.Key_Space]:
+                    new_pos += QVector3D(0.0, 1.0, 0.0) * speed
+                if self.keys[Qt.Key_Control]:
+                    new_pos -= QVector3D(0.0, 1.0, 0.0) * speed
+            
+            # 检测与立方体的碰撞
+            if self.check_collision(new_pos):
+                # 如果发生碰撞，不更新位置
+                pass
+            else:
+                # 如果没有碰撞，更新位置
+                self.camera_pos = new_pos
+        else:
+            # 编辑器模式下的移动
+            # 前后移动
+            if self.keys[Qt.Key_W]:
+                self.camera_pos += self.camera_front * speed
+            if self.keys[Qt.Key_S]:
+                self.camera_pos -= self.camera_front * speed
+            
+            # 左右移动
+            if self.keys[Qt.Key_A]:
+                right = QVector3D.crossProduct(self.camera_front, self.camera_up)
+                right.normalize()
+                self.camera_pos -= right * speed
+            if self.keys[Qt.Key_D]:
+                right = QVector3D.crossProduct(self.camera_front, self.camera_up)
+                right.normalize()
+                self.camera_pos += right * speed
+            
+            # 上下移动
+            if self.keys[Qt.Key_Space]:
+                self.camera_pos += self.camera_up * speed
+            if self.keys[Qt.Key_Control]:
+                self.camera_pos -= self.camera_up * speed
+    
+    def check_collision(self, position):
+        """检查位置是否与立方体碰撞
         
-        # 上下移动
-        if self.keys[Qt.Key_Space]:
-            self.camera_pos += self.camera_up * speed
-        if self.keys[Qt.Key_Control]:
-            self.camera_pos -= self.camera_up * speed
+        Args:
+            position (QVector3D): 要检查的位置
+            
+        Returns:
+            bool: 是否发生碰撞
+        """
+        # 检查与每个立方体的碰撞
+        for cube in self.cubes:
+            cube_pos = QVector3D(cube["position"][0], cube["position"][1], cube["position"][2])
+            # 简单的球体-立方体碰撞检测
+            # 计算立方体的边界框
+            min_x = cube_pos.x() - 0.5
+            max_x = cube_pos.x() + 0.5
+            min_y = cube_pos.y() - 0.5
+            max_y = cube_pos.y() + 0.5
+            min_z = cube_pos.z() - 0.5
+            max_z = cube_pos.z() + 0.5
+            
+            # 计算球体中心到立方体最近点的距离
+            closest_x = max(min_x, min(position.x(), max_x))
+            closest_y = max(min_y, min(position.y(), max_y))
+            closest_z = max(min_z, min(position.z(), max_z))
+            
+            # 计算距离
+            distance = QVector3D(closest_x - position.x(), 
+                                closest_y - position.y(), 
+                                closest_z - position.z()).length()
+            
+            # 如果距离小于球体半径，则发生碰撞
+            if distance < self.player_radius:
+                return True
+        
+        return False
     
     def mousePressEvent(self, event):
         """鼠标按下事件
@@ -632,11 +769,298 @@ class SceneGLWidget(QOpenGLWidget):
             self.last_mouse_y = event.y()
             self.setFocus()  # 确保OpenGL窗口获取焦点
         
-        # 右键选择物体
+        # 右键选择物体或进入世界视窗模式
         elif event.button() == Qt.RightButton:
-            # 这里需要实现对象拾取，简易版本使用射线检测
-            # 将其设置为一个简单的循环测试，选择下一个物体
-            self.selected_cube = (self.selected_cube + 1) % len(self.cubes)
+            if not self.world_view_mode:
+                # 尝试选择物体
+                if self.try_select_object(event.x(), event.y()):
+                    # 如果选中了物体，不进入世界视窗模式
+                    pass
+                else:
+                    # 如果没有选中物体，进入世界视窗模式
+                    self.enter_world_view_mode()
+            else:
+                # 在世界视窗模式下，右键可以用于交互
+                self.try_interact_with_object()
+    
+    def try_select_object(self, x, y):
+        """尝试选择物体
+        
+        Args:
+            x (int): 鼠标X坐标
+            y (int): 鼠标Y坐标
+            
+        Returns:
+            bool: 是否选中了物体
+        """
+        if not self.gl_initialized:
+            return False
+            
+        # 获取视口、投影矩阵和模型视图矩阵
+        viewport = glGetIntegerv(GL_VIEWPORT)
+        projection_matrix = glGetDoublev(GL_PROJECTION_MATRIX)
+        modelview_matrix = glGetDoublev(GL_MODELVIEW_MATRIX)
+        
+        # 将屏幕坐标转换为世界坐标中的射线
+        y = self.height() - y  # 翻转Y坐标
+        near_point = gluUnProject(x, y, 0.0, modelview_matrix, projection_matrix, viewport)
+        far_point = gluUnProject(x, y, 1.0, modelview_matrix, projection_matrix, viewport)
+        
+        # 创建射线
+        ray_origin = QVector3D(near_point[0], near_point[1], near_point[2])
+        ray_direction = QVector3D(
+            far_point[0] - near_point[0],
+            far_point[1] - near_point[1],
+            far_point[2] - near_point[2]
+        )
+        ray_direction.normalize()
+        
+        # 检查射线与每个立方体的交点
+        closest_cube = -1
+        closest_distance = float('inf')
+        
+        for i, cube in enumerate(self.cubes):
+            position = cube["position"]
+            cube_pos = QVector3D(position[0], position[1], position[2])
+            
+            # 简化的射线-立方体相交测试
+            # 立方体的边界框
+            min_x = cube_pos.x() - 0.5
+            max_x = cube_pos.x() + 0.5
+            min_y = cube_pos.y() - 0.5
+            max_y = cube_pos.y() + 0.5
+            min_z = cube_pos.z() - 0.5
+            max_z = cube_pos.z() + 0.5
+            
+            # 计算射线与立方体的交点
+            t_min = float('-inf')
+            t_max = float('inf')
+            
+            # 检查X轴
+            if abs(ray_direction.x()) < 1e-6:
+                if ray_origin.x() < min_x or ray_origin.x() > max_x:
+                    continue
+            else:
+                t1 = (min_x - ray_origin.x()) / ray_direction.x()
+                t2 = (max_x - ray_origin.x()) / ray_direction.x()
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    continue
+            
+            # 检查Y轴
+            if abs(ray_direction.y()) < 1e-6:
+                if ray_origin.y() < min_y or ray_origin.y() > max_y:
+                    continue
+            else:
+                t1 = (min_y - ray_origin.y()) / ray_direction.y()
+                t2 = (max_y - ray_origin.y()) / ray_direction.y()
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    continue
+            
+            # 检查Z轴
+            if abs(ray_direction.z()) < 1e-6:
+                if ray_origin.z() < min_z or ray_origin.z() > max_z:
+                    continue
+            else:
+                t1 = (min_z - ray_origin.z()) / ray_direction.z()
+                t2 = (max_z - ray_origin.z()) / ray_direction.z()
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    continue
+            
+            # 如果到这里，射线与立方体相交
+            if t_min > 0 and t_min < closest_distance:
+                closest_distance = t_min
+                closest_cube = i
+        
+        # 如果找到最近的立方体，选中它
+        if closest_cube >= 0:
+            self.selected_cube = closest_cube
+            cube = self.cubes[self.selected_cube]
+            print(f"已选中: {cube['name']}")
+            return True
+        
+        return False
+    
+    def try_interact_with_object(self):
+        """在世界视窗模式下尝试与物体交互"""
+        # 计算前方射线
+        ray_origin = QVector3D(self.camera_pos)
+        ray_direction = QVector3D(self.camera_front)
+        ray_direction.normalize()
+        
+        # 检查射线与每个立方体的交点
+        closest_cube = -1
+        closest_distance = float('inf')
+        max_interaction_distance = 2.0  # 最大交互距离
+        
+        for i, cube in enumerate(self.cubes):
+            position = cube["position"]
+            cube_pos = QVector3D(position[0], position[1], position[2])
+            
+            # 简化的射线-立方体相交测试
+            # 立方体的边界框
+            min_x = cube_pos.x() - 0.5
+            max_x = cube_pos.x() + 0.5
+            min_y = cube_pos.y() - 0.5
+            max_y = cube_pos.y() + 0.5
+            min_z = cube_pos.z() - 0.5
+            max_z = cube_pos.z() + 0.5
+            
+            # 计算射线与立方体的交点
+            t_min = float('-inf')
+            t_max = float('inf')
+            
+            # 检查X轴
+            if abs(ray_direction.x()) < 1e-6:
+                if ray_origin.x() < min_x or ray_origin.x() > max_x:
+                    continue
+            else:
+                t1 = (min_x - ray_origin.x()) / ray_direction.x()
+                t2 = (max_x - ray_origin.x()) / ray_direction.x()
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    continue
+            
+            # 检查Y轴
+            if abs(ray_direction.y()) < 1e-6:
+                if ray_origin.y() < min_y or ray_origin.y() > max_y:
+                    continue
+            else:
+                t1 = (min_y - ray_origin.y()) / ray_direction.y()
+                t2 = (max_y - ray_origin.y()) / ray_direction.y()
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    continue
+            
+            # 检查Z轴
+            if abs(ray_direction.z()) < 1e-6:
+                if ray_origin.z() < min_z or ray_origin.z() > max_z:
+                    continue
+            else:
+                t1 = (min_z - ray_origin.z()) / ray_direction.z()
+                t2 = (max_z - ray_origin.z()) / ray_direction.z()
+                
+                if t1 > t2:
+                    t1, t2 = t2, t1
+                
+                t_min = max(t_min, t1)
+                t_max = min(t_max, t2)
+                
+                if t_min > t_max:
+                    continue
+            
+            # 如果到这里，射线与立方体相交
+            if t_min > 0 and t_min < closest_distance and t_min < max_interaction_distance:
+                closest_distance = t_min
+                closest_cube = i
+        
+        # 如果找到最近的立方体，与它交互
+        if closest_cube >= 0:
+            cube = self.cubes[closest_cube]
+            print(f"与 {cube['name']} 交互")
+            # 这里可以添加更多交互逻辑
+            return True
+        
+        return False
+    
+    def enter_world_view_mode(self):
+        """进入世界视窗模式"""
+        # 保存当前编辑器相机状态
+        self.editor_camera_state = {
+            'position': QVector3D(self.camera_pos),
+            'front': QVector3D(self.camera_front),
+            'up': QVector3D(self.camera_up),
+            'yaw': self.yaw,
+            'pitch': self.pitch
+        }
+        
+        # 设置世界视窗模式标志
+        self.world_view_mode = True
+        
+        # 设置初始视角（人眼高度）
+        self.camera_pos = QVector3D(0.0, self.world_view_height, 0.0)
+        
+        # 重置玩家状态
+        self.player_velocity = QVector3D(0.0, 0.0, 0.0)
+        self.is_jumping = False
+        self.is_grounded = True
+        
+        # 将视角设置为水平
+        self.pitch = 0.0
+        self.update_camera_vectors()
+        
+        # 捕获鼠标并隐藏鼠标指针
+        self.setMouseTracking(True)
+        self.setCursor(Qt.BlankCursor)
+        
+        # 将鼠标移动到屏幕中心
+        center = self.mapToGlobal(QPoint(self.width() // 2, self.height() // 2))
+        QCursor.setPos(center)
+        
+        print("已进入世界视窗模式，使用WASD移动，空格跳跃，鼠标控制视角，按ESC退出")
+    
+    def exit_world_view_mode(self):
+        """退出世界视窗模式"""
+        if not self.world_view_mode:
+            return
+            
+        # 恢复编辑器相机状态
+        self.camera_pos = self.editor_camera_state['position']
+        self.camera_front = self.editor_camera_state['front']
+        self.camera_up = self.editor_camera_state['up']
+        self.yaw = self.editor_camera_state['yaw']
+        self.pitch = self.editor_camera_state['pitch']
+        
+        # 重置世界视窗模式标志
+        self.world_view_mode = False
+        
+        # 释放鼠标控制
+        self.setMouseTracking(False)
+        self.setCursor(Qt.ArrowCursor)
+        
+        print("已退出世界视窗模式")
+    
+    def update_camera_vectors(self):
+        """更新相机向量"""
+        # 计算新的相机前方向向量
+        front = QVector3D()
+        front.setX(math.cos(math.radians(self.yaw)) * math.cos(math.radians(self.pitch)))
+        front.setY(math.sin(math.radians(self.pitch)))
+        front.setZ(math.sin(math.radians(self.yaw)) * math.cos(math.radians(self.pitch)))
+        front.normalize()
+        self.camera_front = front
     
     def mouseReleaseEvent(self, event):
         """鼠标释放事件
@@ -653,7 +1077,45 @@ class SceneGLWidget(QOpenGLWidget):
         Args:
             event: 鼠标事件
         """
-        if self.mouse_pressed:
+        if self.world_view_mode:
+            # 在世界视窗模式下，鼠标移动总是控制视角
+            # 获取屏幕中心点
+            center_x = self.width() // 2
+            center_y = self.height() // 2
+            
+            # 计算鼠标移动的偏移量
+            x_offset = event.x() - center_x
+            y_offset = center_y - event.y()  # 反转Y坐标
+            
+            # 敏感度
+            sensitivity = 0.1
+            x_offset *= sensitivity
+            y_offset *= sensitivity
+            
+            # 更新相机方向
+            self.yaw += x_offset
+            self.pitch += y_offset
+            
+            # 限制俯仰角度，防止翻转
+            if self.pitch > 89.0:
+                self.pitch = 89.0
+            if self.pitch < -89.0:
+                self.pitch = -89.0
+            
+            # 计算新的相机前方向向量
+            front = QVector3D()
+            front.setX(math.cos(math.radians(self.yaw)) * math.cos(math.radians(self.pitch)))
+            front.setY(math.sin(math.radians(self.pitch)))
+            front.setZ(math.sin(math.radians(self.yaw)) * math.cos(math.radians(self.pitch)))
+            front.normalize()
+            self.camera_front = front
+            
+            # 将鼠标重置到屏幕中心
+            cursor = QCursor()
+            cursor.setPos(self.mapToGlobal(QPoint(center_x, center_y)))
+            
+        elif self.mouse_pressed:
+            # 编辑器模式下的鼠标移动处理
             # 计算鼠标移动的偏移量
             x_offset = event.x() - self.last_mouse_x
             y_offset = self.last_mouse_y - event.y()  # 反转Y坐标
@@ -710,6 +1172,10 @@ class SceneGLWidget(QOpenGLWidget):
         if event.key() in self.keys:
             self.keys[event.key()] = True
         
+        # ESC键退出世界视窗模式
+        elif event.key() == Qt.Key_Escape and self.world_view_mode:
+            self.exit_world_view_mode()
+        
         # 切换网格显示
         elif event.key() == Qt.Key_G:
             self.show_grid = not self.show_grid
@@ -721,6 +1187,14 @@ class SceneGLWidget(QOpenGLWidget):
         # 切换统计信息显示
         elif event.key() == Qt.Key_F:
             self.show_stats = not self.show_stats
+            
+        # 切换重力
+        elif event.key() == Qt.Key_V and self.world_view_mode:
+            self.gravity_enabled = not self.gravity_enabled
+            if self.gravity_enabled:
+                print("重力已启用")
+            else:
+                print("重力已禁用")
     
     def keyReleaseEvent(self, event):
         """键盘释放事件
@@ -730,3 +1204,53 @@ class SceneGLWidget(QOpenGLWidget):
         """
         if event.key() in self.keys:
             self.keys[event.key()] = False
+    
+    def draw_crosshair(self):
+        """绘制准星"""
+        # 禁用深度测试以确保准星始终可见
+        glDisable(GL_DEPTH_TEST)
+        
+        # 设置正交投影
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        glOrtho(0, self.width(), 0, self.height(), -1, 1)
+        
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix()
+        glLoadIdentity()
+        
+        # 计算屏幕中心
+        center_x = self.width() // 2
+        center_y = self.height() // 2
+        
+        # 设置准星颜色和大小
+        glColor3f(1.0, 1.0, 1.0)  # 白色
+        glLineWidth(1.0)
+        
+        # 绘制十字准星
+        size = 10  # 准星大小
+        
+        try:
+            glBegin(GL_LINES)
+            try:
+                # 水平线
+                glVertex2f(center_x - size, center_y)
+                glVertex2f(center_x + size, center_y)
+                
+                # 垂直线
+                glVertex2f(center_x, center_y - size)
+                glVertex2f(center_x, center_y + size)
+            finally:
+                glEnd()
+        except OpenGL.error.GLError as e:
+            print(f"绘制准星时出错: {e}")
+        
+        # 恢复矩阵
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
+        
+        # 重新启用深度测试
+        glEnable(GL_DEPTH_TEST)

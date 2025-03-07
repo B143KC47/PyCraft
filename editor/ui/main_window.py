@@ -76,6 +76,10 @@ class MainWindow(QMainWindow):
         # 添加WASD控制提示
         control_label = QLabel("使用WASD键移动，空格键上升，Ctrl键下降")
         self.statusBar().addPermanentWidget(control_label)
+        
+        # 添加世界视窗模式提示
+        world_view_label = QLabel("右键点击进入世界视窗模式，ESC退出")
+        self.statusBar().addPermanentWidget(world_view_label)
     
     def _create_menu_bar(self):
         """创建菜单栏"""
