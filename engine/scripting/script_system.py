@@ -1,18 +1,14 @@
 """
-脚本系统，负责管理和执行脚本
+脚本系统，处理和管理游戏脚本
 """
 
+import importlib
 import os
-import importlib.util
 import sys
 import inspect
-import traceback
-
 from engine.core.ecs.system import System
 
-
 class Script:
-    """脚本基类，所有脚本都应继承自此类"""
     
     def __init__(self):
         """初始化脚本"""
@@ -47,179 +43,106 @@ class Script:
             delta_time (float): 帧时间，单位为秒
         """
         pass
-    
-    def fixed_update(self, delta_time):
-        """
-        固定时间步长更新时调用
-        
-        Args:
-            delta_time (float): 固定帧时间，单位为秒
-        """
-        pass
-    
-    def late_update(self, delta_time):
-        """
-        在所有更新之后调用
-        
-        Args:
-            delta_time (float): 帧时间，单位为秒
-        """
-        pass
-    
-    def on_collision_enter(self, other):
-        """
-        当碰撞开始时调用
-        
-        Args:
-            other: 碰撞的另一个实体
-        """
-        pass
-    
-    def on_collision_stay(self, other):
-        """
-        当碰撞持续时调用
-        
-        Args:
-            other: 碰撞的另一个实体
-        """
-        pass
-    
-    def on_collision_exit(self, other):
-        """
-        当碰撞结束时调用
-        
-        Args:
-            other: 碰撞的另一个实体
-        """
-        pass
-    
-    def on_trigger_enter(self, other):
-        """
-        当触发器开始时调用
-        
-        Args:
-            other: 触发的另一个实体
-        """
-        pass
-    
-    def on_trigger_stay(self, other):
-        """
-        当触发器持续时调用
-        
-        Args:
-            other: 触发的另一个实体
-        """
-        pass
-    
-    def on_trigger_exit(self, other):
-        """
-        当触发器结束时调用
-        
-        Args:
-            other: 触发的另一个实体
-        """
-        pass
-    
-    def on_destroy(self):
-        """当实体被销毁时调用"""
-        pass
 
 
 class ScriptSystem(System):
-    """脚本系统，负责管理和执行脚本"""
+    """脚本系统，处理和管理游戏脚本"""
     
     def __init__(self):
         """初始化脚本系统"""
         super().__init__()
-        self.priority = 20  # 脚本系统优先级中等，在输入系统之后，物理系统之前更新
-        self.scripts = {}  # 脚本字典，键为脚本名称，值为脚本类
-        self.script_instances = {}  # 脚本实例字典，键为实体ID，值为脚本实例列表
         self.script_paths = []  # 脚本路径列表
-        self.fixed_time_step = 1.0 / 60.0  # 固定时间步长
-        self.accumulated_time = 0.0  # 累积时间
+        self.script_classes = {}  # 脚本类字典，键为脚本名称，值为脚本类
+        self.active_scripts = []  # 活动脚本列表
         self.initialized = False  # 是否已初始化
+        self.running = False  # 脚本系统是否正在运行
     
-    def initialize(self, script_paths=None):
-        """
-        初始化脚本系统
+    def initialize(self):
+        """初始化脚本系统"""
+        # 添加默认脚本路径
+        default_script_paths = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scripts"),  # 引擎脚本目录
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "game", "scripts")  # 游戏脚本目录
+        ]
         
-        Args:
-            script_paths (list): 脚本路径列表
-        """
-        if script_paths:
-            self.script_paths = script_paths
-        
-        # 加载脚本
-        self._load_scripts()
+        for path in default_script_paths:
+            if os.path.exists(path):
+                self.add_script_path(path)
         
         self.initialized = True
     
-    def _load_scripts(self):
-        """加载脚本"""
-        for script_path in self.script_paths:
-            if os.path.isdir(script_path):
-                # 如果是目录，加载目录下的所有脚本
-                for root, _, files in os.walk(script_path):
-                    for file in files:
-                        if file.endswith(".py"):
-                            self._load_script_file(os.path.join(root, file))
-            elif os.path.isfile(script_path) and script_path.endswith(".py"):
-                # 如果是文件，加载单个脚本
-                self._load_script_file(script_path)
-    
-    def _load_script_file(self, file_path):
-        """
-        加载脚本文件
-        
-        Args:
-            file_path (str): 脚本文件路径
-        """
-        try:
-            # 获取模块名
-            module_name = os.path.basename(file_path)[:-3]  # 去掉.py后缀
-            
-            # 加载模块
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            
-            # 查找脚本类
-            for name, obj in inspect.getmembers(module):
-                if inspect.isclass(obj) and issubclass(obj, Script) and obj != Script:
-                    self.scripts[name] = obj
-        
-        except Exception as e:
-            print(f"加载脚本失败: {file_path}, {e}")
-            traceback.print_exc()
-    
-    def add_script_path(self, script_path):
+    def add_script_path(self, path):
         """
         添加脚本路径
         
         Args:
-            script_path (str): 脚本路径
+            path (str): 脚本目录路径
         """
-        if script_path not in self.script_paths:
-            self.script_paths.append(script_path)
+        if os.path.exists(path) and path not in self.script_paths:
+            self.script_paths.append(path)
             
-            # 加载脚本
-            if os.path.isdir(script_path):
-                # 如果是目录，加载目录下的所有脚本
-                for root, _, files in os.walk(script_path):
-                    for file in files:
-                        if file.endswith(".py"):
-                            self._load_script_file(os.path.join(root, file))
-            elif os.path.isfile(script_path) and script_path.endswith(".py"):
-                # 如果是文件，加载单个脚本
-                self._load_script_file(script_path)
+            # 将路径添加到Python模块搜索路径
+            if path not in sys.path:
+                sys.path.append(path)
     
-    def reload_scripts(self):
-        """重新加载脚本"""
-        # 清空脚本字典
-        self.scripts.clear()
+    def load_script_class(self, script_name):
+        """
+        加载脚本类
         
-        # 重新加载脚本
-        self._load_scripts()
+        Args:
+            script_name (str): 脚本名称
+            
+        Returns:
+            class: 脚本类，如果不存在则返回None
+        """
+        # 如果已经加载，直接返回
+        if script_name in self.script_classes:
+            return self.script_classes[script_name]
+        
+        # 尝试导入脚本模块
+        try:
+            # 尝试直接导入
+            module = importlib.import_module(script_name)
+            
+            # 查找脚本类
+            for name, obj in inspect.getmembers(module):
+                if inspect.isclass(obj) and issubclass(obj, Script) and obj != Script:
+                    # 缓存脚本类
+                    self.script_classes[script_name] = obj
+                    return obj
+            
+            print(f"找不到脚本类: {script_name}")
+            return None
+            
+        except ImportError:
+            # 如果直接导入失败，尝试从脚本路径中查找
+            for path in self.script_paths:
+                script_path = os.path.join(path, f"{script_name}.py")
+                
+                if os.path.exists(script_path):
+                    # 获取相对模块名称
+                    rel_path = os.path.relpath(script_path, os.path.dirname(path))
+                    module_name = os.path.splitext(rel_path.replace(os.path.sep, "."))[0]
+                    
+                    try:
+                        # 导入模块
+                        module = importlib.import_module(module_name)
+                        
+                        # 查找脚本类
+                        for name, obj in inspect.getmembers(module):
+                            if inspect.isclass(obj) and issubclass(obj, Script) and obj != Script:
+                                # 缓存脚本类
+                                self.script_classes[script_name] = obj
+                                return obj
+                        
+                        print(f"找不到脚本类: {script_name}")
+                        return None
+                        
+                    except Exception as e:
+                        print(f"加载脚本失败: {script_name}, {e}")
+            
+            print(f"找不到脚本文件: {script_name}")
+            return None
     
     def create_script(self, script_name, entity):
         """
@@ -232,139 +155,28 @@ class ScriptSystem(System):
         Returns:
             Script: 脚本实例，如果创建失败则返回None
         """
-        if not self.initialized:
-            return None
+        # 加载脚本类
+        script_class = self.load_script_class(script_name)
         
-        if script_name not in self.scripts:
-            print(f"脚本不存在: {script_name}")
-            return None
-        
-        try:
-            # 创建脚本实例
-            script = self.scripts[script_name]()
-            script.entity = entity
-            
-            # 添加到脚本实例字典
-            entity_id = entity.id
-            if entity_id not in self.script_instances:
-                self.script_instances[entity_id] = []
-            
-            self.script_instances[entity_id].append(script)
-            
-            # 调用脚本的添加方法
-            script.on_add()
-            
-            return script
-        
-        except Exception as e:
-            print(f"创建脚本实例失败: {script_name}, {e}")
-            traceback.print_exc()
-            return None
-    
-    def remove_script(self, entity, script):
-        """
-        移除脚本实例
-        
-        Args:
-            entity: 所属实体
-            script: 脚本实例
-            
-        Returns:
-            bool: 是否成功移除
-        """
-        if not self.initialized:
-            return False
-        
-        entity_id = entity.id
-        
-        if entity_id not in self.script_instances:
-            return False
-        
-        if script in self.script_instances[entity_id]:
-            # 调用脚本的移除方法
-            script.on_remove()
-            
-            # 从脚本实例字典中移除
-            self.script_instances[entity_id].remove(script)
-            
-            return True
-        
-        return False
-    
-    def remove_all_scripts(self, entity):
-        """
-        移除实体的所有脚本
-        
-        Args:
-            entity: 所属实体
-            
-        Returns:
-            bool: 是否成功移除
-        """
-        if not self.initialized:
-            return False
-        
-        entity_id = entity.id
-        
-        if entity_id not in self.script_instances:
-            return False
-        
-        # 调用所有脚本的移除方法
-        for script in self.script_instances[entity_id]:
-            script.on_remove()
-        
-        # 清空脚本实例列表
-        self.script_instances[entity_id].clear()
-        
-        # 从脚本实例字典中移除
-        del self.script_instances[entity_id]
-        
-        return True
-    
-    def get_script(self, entity, script_type):
-        """
-        获取实体的脚本实例
-        
-        Args:
-            entity: 所属实体
-            script_type: 脚本类型
-            
-        Returns:
-            Script: 脚本实例，如果不存在则返回None
-        """
-        if not self.initialized:
-            return None
-        
-        entity_id = entity.id
-        
-        if entity_id not in self.script_instances:
-            return None
-        
-        for script in self.script_instances[entity_id]:
-            if isinstance(script, script_type):
+        if script_class:
+            try:
+                # 创建脚本实例
+                script = script_class()
+                script.entity = entity
+                
+                # 添加到活动脚本列表
+                self.active_scripts.append(script)
+                
+                # 调用添加方法
+                script.on_add()
+                
                 return script
+                
+            except Exception as e:
+                print(f"创建脚本实例失败: {script_name}, {e}")
+                return None
         
         return None
-    
-    def get_scripts(self, entity):
-        """
-        获取实体的所有脚本实例
-        
-        Args:
-            entity: 所属实体
-            
-        Returns:
-            list: 脚本实例列表
-        """
-        if not self.initialized:
-            return []
-        
-        entity_id = entity.id
-        
-        if entity_id not in self.script_instances:
-            return []
-        
-        return self.script_instances[entity_id].copy()
     
     def start_scripts(self, scene):
         """
@@ -373,21 +185,38 @@ class ScriptSystem(System):
         Args:
             scene: 场景
         """
-        if not self.initialized:
-            return
+        # 清空活动脚本列表
+        self.active_scripts = []
+        
+        # 获取场景中所有实体
+        entities = scene.get_entities()
+        
+        # 收集所有脚本组件
+        for entity in entities:
+            # 在这里我们需要查找实体上的脚本组件
+            # 由于没有具体的脚本组件类，我们假设它继承自Script
+            for component in entity.get_components():
+                if isinstance(component, Script):
+                    self.active_scripts.append(component)
         
         # 调用所有脚本的start方法
-        for entity_id, scripts in self.script_instances.items():
-            entity = scene.get_entity(entity_id)
-            
-            if entity and entity.enabled:
-                for script in scripts:
-                    if script.enabled:
-                        try:
-                            script.start()
-                        except Exception as e:
-                            print(f"脚本start方法执行失败: {script.__class__.__name__}, {e}")
-                            traceback.print_exc()
+        for script in self.active_scripts:
+            if script.enabled:
+                try:
+                    script.start()
+                except Exception as e:
+                    print(f"调用脚本start方法失败: {script.__class__.__name__}, {e}")
+        
+        # 启动脚本系统
+        self.running = True
+    
+    def stop_scripts(self):
+        """停止所有脚本"""
+        # 停止脚本系统
+        self.running = False
+        
+        # 清空活动脚本列表
+        self.active_scripts = []
     
     def update(self, delta_time):
         """
@@ -396,213 +225,46 @@ class ScriptSystem(System):
         Args:
             delta_time (float): 帧时间，单位为秒
         """
-        if not self.initialized:
+        if not self.initialized or not self.running:
             return
         
-        # 更新所有脚本
-        for entity_id, scripts in list(self.script_instances.items()):
-            for script in scripts:
-                if script.enabled and script.entity and script.entity.enabled:
-                    try:
-                        script.update(delta_time)
-                    except Exception as e:
-                        print(f"脚本update方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-        
-        # 累积时间
-        self.accumulated_time += delta_time
-        
-        # 固定时间步长更新
-        while self.accumulated_time >= self.fixed_time_step:
-            self.accumulated_time -= self.fixed_time_step
-            
-            # 更新所有脚本的fixed_update方法
-            for entity_id, scripts in list(self.script_instances.items()):
-                for script in scripts:
-                    if script.enabled and script.entity and script.entity.enabled:
-                        try:
-                            script.fixed_update(self.fixed_time_step)
-                        except Exception as e:
-                            print(f"脚本fixed_update方法执行失败: {script.__class__.__name__}, {e}")
-                            traceback.print_exc()
-        
-        # 更新所有脚本的late_update方法
-        for entity_id, scripts in list(self.script_instances.items()):
-            for script in scripts:
-                if script.enabled and script.entity and script.entity.enabled:
-                    try:
-                        script.late_update(delta_time)
-                    except Exception as e:
-                        print(f"脚本late_update方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_collision_enter(self, entity_a, entity_b):
-        """
-        处理碰撞开始事件
-        
-        Args:
-            entity_a: 第一个实体
-            entity_b: 第二个实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_a_id = entity_a.id
-        
-        if entity_a_id in self.script_instances:
-            for script in self.script_instances[entity_a_id]:
-                if script.enabled:
-                    try:
-                        script.on_collision_enter(entity_b)
-                    except Exception as e:
-                        print(f"脚本on_collision_enter方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_collision_stay(self, entity_a, entity_b):
-        """
-        处理碰撞持续事件
-        
-        Args:
-            entity_a: 第一个实体
-            entity_b: 第二个实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_a_id = entity_a.id
-        
-        if entity_a_id in self.script_instances:
-            for script in self.script_instances[entity_a_id]:
-                if script.enabled:
-                    try:
-                        script.on_collision_stay(entity_b)
-                    except Exception as e:
-                        print(f"脚本on_collision_stay方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_collision_exit(self, entity_a, entity_b):
-        """
-        处理碰撞结束事件
-        
-        Args:
-            entity_a: 第一个实体
-            entity_b: 第二个实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_a_id = entity_a.id
-        
-        if entity_a_id in self.script_instances:
-            for script in self.script_instances[entity_a_id]:
-                if script.enabled:
-                    try:
-                        script.on_collision_exit(entity_b)
-                    except Exception as e:
-                        print(f"脚本on_collision_exit方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_trigger_enter(self, entity_a, entity_b):
-        """
-        处理触发器开始事件
-        
-        Args:
-            entity_a: 第一个实体
-            entity_b: 第二个实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_a_id = entity_a.id
-        
-        if entity_a_id in self.script_instances:
-            for script in self.script_instances[entity_a_id]:
-                if script.enabled:
-                    try:
-                        script.on_trigger_enter(entity_b)
-                    except Exception as e:
-                        print(f"脚本on_trigger_enter方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_trigger_stay(self, entity_a, entity_b):
-        """
-        处理触发器持续事件
-        
-        Args:
-            entity_a: 第一个实体
-            entity_b: 第二个实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_a_id = entity_a.id
-        
-        if entity_a_id in self.script_instances:
-            for script in self.script_instances[entity_a_id]:
-                if script.enabled:
-                    try:
-                        script.on_trigger_stay(entity_b)
-                    except Exception as e:
-                        print(f"脚本on_trigger_stay方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_trigger_exit(self, entity_a, entity_b):
-        """
-        处理触发器结束事件
-        
-        Args:
-            entity_a: 第一个实体
-            entity_b: 第二个实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_a_id = entity_a.id
-        
-        if entity_a_id in self.script_instances:
-            for script in self.script_instances[entity_a_id]:
-                if script.enabled:
-                    try:
-                        script.on_trigger_exit(entity_b)
-                    except Exception as e:
-                        print(f"脚本on_trigger_exit方法执行失败: {script.__class__.__name__}, {e}")
-                        traceback.print_exc()
-    
-    def on_entity_destroy(self, entity):
-        """
-        处理实体销毁事件
-        
-        Args:
-            entity: 实体
-        """
-        if not self.initialized:
-            return
-        
-        entity_id = entity.id
-        
-        if entity_id in self.script_instances:
-            for script in self.script_instances[entity_id]:
+        # 更新所有活动脚本
+        for script in self.active_scripts:
+            if script.enabled:
                 try:
-                    script.on_destroy()
+                    script.update(delta_time)
                 except Exception as e:
-                    print(f"脚本on_destroy方法执行失败: {script.__class__.__name__}, {e}")
-                    traceback.print_exc()
-            
-            # 清空脚本实例列表
-            self.script_instances[entity_id].clear()
-            
-            # 从脚本实例字典中移除
-            del self.script_instances[entity_id]
+                    print(f"调用脚本update方法失败: {script.__class__.__name__}, {e}")
+    
+    def reload_scripts(self):
+        """重新加载所有脚本"""
+        # 清除脚本类缓存
+        self.script_classes.clear()
+        
+        # 记录当前活动脚本
+        active_scripts = []
+        for script in self.active_scripts:
+            active_scripts.append({
+                "name": script.__class__.__module__,
+                "entity": script.entity
+            })
+        
+        # 清空活动脚本列表
+        self.active_scripts = []
+        
+        # 重新创建脚本
+        for script_info in active_scripts:
+            script = self.create_script(script_info["name"], script_info["entity"])
+            if script and self.running:
+                script.start()
     
     def shutdown(self):
         """关闭脚本系统"""
-        if not self.initialized:
-            return
+        # 停止所有脚本
+        self.stop_scripts()
         
-        # 清空脚本实例字典
-        self.script_instances.clear()
+        # 清除脚本类缓存
+        self.script_classes.clear()
         
-        # 清空脚本字典
-        self.scripts.clear()
-        
-        self.initialized = False 
+        # 重置系统状态
+        self.initialized = False

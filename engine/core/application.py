@@ -56,9 +56,17 @@ class Application:
         
         # 初始化标志
         self.initialized = False
+        
+        # 自定义回调
+        self.on_start_callback = None
+        self.on_stop_callback = None
+        self.on_update_callback = None
     
     def initialize(self):
         """初始化应用程序"""
+        if self.initialized:
+            return True
+            
         # 初始化Pygame
         pygame.init()
         
@@ -76,33 +84,102 @@ class Application:
         if self.fullscreen:
             flags |= pygame.FULLSCREEN
         
-        self.window = pygame.display.set_mode((self.width, self.height), flags)
-        pygame.display.set_caption(self.title)
+        try:
+            self.window = pygame.display.set_mode((self.width, self.height), flags)
+            pygame.display.set_caption(self.title)
+        except pygame.error as e:
+            print(f"创建窗口失败: {e}")
+            # 尝试使用兼容模式创建窗口
+            pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLEBUFFERS, 0)
+            pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLESAMPLES, 0)
+            try:
+                self.window = pygame.display.set_mode((self.width, self.height), flags)
+                pygame.display.set_caption(f"{self.title} (兼容模式)")
+                print("已切换到兼容模式")
+            except pygame.error as e2:
+                print(f"创建兼容模式窗口失败: {e2}")
+                return False
         
         # 创建时钟
         self.clock = pygame.time.Clock()
         
         # 初始化系统
-        self.render_system.initialize(self.width, self.height)
-        self.physics_system.initialize(self.debug)
-        self.input_system.initialize()
-        self.script_system.initialize()
-        self.ui_system.initialize(self.width, self.height)
+        try:
+            # 渲染系统必须在窗口创建后初始化
+            self.render_system.initialize(self.width, self.height)
+            self.physics_system.initialize(self.debug)
+            self.input_system.initialize()
+            self.script_system.initialize()
+            self.ui_system.initialize(self.width, self.height)
+        except Exception as e:
+            print(f"初始化系统失败: {e}")
+            return False
         
         # 创建默认场景
         self.scene_manager.create_scene("Default Scene")
         
         self.initialized = True
+        return True
+    
+    def start(self):
+        """启动应用程序但不进入主循环"""
+        if not self.initialized and not self.initialize():
+            print("初始化失败，无法启动应用程序")
+            return False
+            
+        # 设置运行标志
+        self.running = True
+        self.paused = False
+        
+        # 重置计时器
+        self.elapsed_time = 0.0
+        self.frame_count = 0
+        self.delta_time = 0.0
+        
+        # 启动脚本系统
+        scene = self.scene_manager.get_active_scene()
+        if scene:
+            self.script_system.start_scripts(scene)
+        
+        # 调用启动回调
+        if self.on_start_callback:
+            try:
+                self.on_start_callback(self)
+            except Exception as e:
+                print(f"启动回调异常: {e}")
+        
+        return True
+    
+    def stop(self):
+        """停止应用程序"""
+        # 设置停止标志
+        self.running = False
+        
+        # 停止脚本系统
+        self.script_system.stop_scripts()
+        
+        # 调用停止回调
+        if self.on_stop_callback:
+            try:
+                self.on_stop_callback(self)
+            except Exception as e:
+                print(f"停止回调异常: {e}")
     
     def run(self):
         """运行应用程序"""
-        if not self.initialized:
-            self.initialize()
-        
-        self.running = True
+        # 启动应用程序
+        if not self.start():
+            return
         
         # 主循环
         while self.running:
+            # 处理事件
+            self._process_events()
+            
+            # 如果不再运行，退出循环
+            if not self.running:
+                break
+            
             # 计算帧时间
             self.delta_time = self.clock.tick(self.target_fps) / 1000.0
             self.elapsed_time += self.delta_time
@@ -117,9 +194,6 @@ class Application:
                 # 更新窗口标题
                 pygame.display.set_caption(f"{self.title} - FPS: {self.fps}")
             
-            # 处理事件
-            self._process_events()
-            
             # 更新
             if not self.paused:
                 self._update()
@@ -132,6 +206,48 @@ class Application:
         
         # 清理
         self._cleanup()
+    
+    def run_once(self):
+        """运行一帧"""
+        if not self.initialized and not self.initialize():
+            print("初始化失败，无法运行")
+            return False
+        
+        if not self.running:
+            return False
+            
+        # 处理事件
+        self._process_events()
+        
+        # 如果不再运行，返回
+        if not self.running:
+            return False
+        
+        # 计算帧时间
+        self.delta_time = self.clock.tick(self.target_fps) / 1000.0
+        self.elapsed_time += self.delta_time
+        self.frame_count += 1
+        
+        # 计算FPS
+        if self.elapsed_time >= 1.0:
+            self.fps = self.frame_count
+            self.frame_count = 0
+            self.elapsed_time = 0.0
+            
+            # 更新窗口标题
+            pygame.display.set_caption(f"{self.title} - FPS: {self.fps}")
+        
+        # 更新
+        if not self.paused:
+            self._update()
+        
+        # 渲染
+        self._render()
+        
+        # 交换缓冲区
+        pygame.display.flip()
+        
+        return True
     
     def _process_events(self):
         """处理事件"""
@@ -159,8 +275,8 @@ class Application:
                     self.toggle_fullscreen()
                 
                 # 空格键暂停/恢复
-                elif event.key == pygame.K_SPACE:
-                    self.paused = not self.paused
+                elif event.key == pygame.K_SPACE and pygame.key.get_mods() & pygame.KMOD_CTRL:
+                    self.toggle_pause()
             
             # 处理输入系统事件
             self.input_system.process_event(event)
@@ -184,6 +300,13 @@ class Application:
         
         # 更新UI系统
         self.ui_system.update(self.delta_time)
+        
+        # 调用自定义更新回调
+        if self.on_update_callback:
+            try:
+                self.on_update_callback(self, self.delta_time)
+            except Exception as e:
+                print(f"更新回调异常: {e}")
     
     def _render(self):
         """渲染"""
@@ -214,17 +337,37 @@ class Application:
         
         # 关闭Pygame
         pygame.quit()
+        
+        # 重置状态
+        self.initialized = False
     
     def toggle_fullscreen(self):
         """切换全屏"""
         self.fullscreen = not self.fullscreen
+        
+        # 保存当前分辨率
+        current_width, current_height = self.width, self.height
         
         # 重新创建窗口
         flags = pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE
         if self.fullscreen:
             flags |= pygame.FULLSCREEN
         
-        self.window = pygame.display.set_mode((self.width, self.height), flags)
+        self.window = pygame.display.set_mode((current_width, current_height), flags)
+        
+        # 调整系统
+        self.render_system.resize(current_width, current_height)
+        self.ui_system.resize(current_width, current_height)
+    
+    def toggle_pause(self):
+        """切换暂停/恢复状态"""
+        self.paused = not self.paused
+        
+        # 更新窗口标题
+        if self.paused:
+            pygame.display.set_caption(f"{self.title} - 已暂停")
+        else:
+            pygame.display.set_caption(f"{self.title} - FPS: {self.fps}")
     
     def load_scene(self, path):
         """
@@ -242,8 +385,9 @@ class Application:
             # 设置为当前场景
             self.scene_manager.set_active_scene(scene.id)
             
-            # 启动脚本
-            self.script_system.start_scripts(scene)
+            # 如果应用程序正在运行，启动脚本
+            if self.running:
+                self.script_system.start_scripts(scene)
             
             return True
         
@@ -391,25 +535,17 @@ class Application:
         """
         return self.script_system.create_script(script_name, entity)
     
-    def create_ui_canvas(self, name, width=None, height=None):
+    def create_ui_canvas(self, name):
         """
         创建UI画布
         
         Args:
             name (str): 画布名称
-            width (float): 宽度，如果为None则使用窗口宽度
-            height (float): 高度，如果为None则使用窗口高度
             
         Returns:
             UICanvas: 创建的画布
         """
-        if width is None:
-            width = self.width
-        
-        if height is None:
-            height = self.height
-        
-        return self.ui_system.create_canvas(name, width, height)
+        return self.ui_system.create_canvas(name)
     
     def get_ui_canvas(self, name):
         """
@@ -449,6 +585,33 @@ class Application:
         """
         return self.ui_system.create_widget(widget_type, *args, **kwargs)
     
+    def set_on_start_callback(self, callback):
+        """
+        设置启动回调
+        
+        Args:
+            callback: 回调函数，接受应用程序实例作为参数
+        """
+        self.on_start_callback = callback
+    
+    def set_on_stop_callback(self, callback):
+        """
+        设置停止回调
+        
+        Args:
+            callback: 回调函数，接受应用程序实例作为参数
+        """
+        self.on_stop_callback = callback
+    
+    def set_on_update_callback(self, callback):
+        """
+        设置更新回调
+        
+        Args:
+            callback: 回调函数，接受应用程序实例和delta_time作为参数
+        """
+        self.on_update_callback = callback
+    
     def __str__(self):
         """字符串表示"""
-        return f"Application(title={self.title}, width={self.width}, height={self.height}, fps={self.fps})" 
+        return f"Application(title={self.title}, width={self.width}, height={self.height}, fps={self.fps}, running={self.running}, paused={self.paused})"
